@@ -52,6 +52,7 @@ end
 actions = { type_type = {}, prototype_prototype = {}, type_prototype = {}, prototype_type = {}}
 stacks_size = { 0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 10 }
 local event_add_settings;
+local event_backup = {};
 
 -- Api
 
@@ -119,25 +120,61 @@ remote.add_interface("aps", {
 
 -- Local additional paste settings
 local assembly_to_inserter = function (from, to, player, multiplier)
+
 	local ctrl = to.get_or_create_control_behavior()
 	
 	local c1 = ctrl.get_circuit_network(defines.wire_type.red)
 	local c2 = ctrl.get_circuit_network(defines.wire_type.green)
 	
-	local product = from.recipe.products[1].name
-	local item = game.item_prototypes[product]
-	
-	if item ~= nil then
-		if c1 == nil and c2 == nil then			
-			ctrl.connect_to_logistic_network = true
-			ctrl.logistic_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=multiplier * item.stack_size}}
-		else							
-			ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable
-			ctrl.circuit_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=multiplier * item.stack_size}}
+	if from.recipe == nil then
+		if c1 == nil and c2 == nil then
+			ctrl.logistic_condition = nil
+			ctrl.connect_to_logistic_network = false
+		else
+			ctrl.circuit_condition = nil
+			ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.none
+		end
+	else
+		local product = from.recipe.products[1].name
+		local item = game.item_prototypes[product]
+		
+		if item ~= nil then
+			if c1 == nil and c2 == nil then
+				ctrl.connect_to_logistic_network = true
+				ctrl.logistic_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=multiplier * item.stack_size}}
+			else							
+				ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable
+				ctrl.circuit_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=multiplier * item.stack_size}}
+				
+			end
 			
 		end
-		
 	end
+end
+
+local assembly_to_requester_chest = function (from, to, player, multiplier)
+
+	event_backup[from.position.x .. "-" .. from.position.y .. "-" .. to.position.x .. "-" .. to.position.y] = {gamer = player.index, multiplier, stacks = {}}
+end
+
+local clear_requester_chest = function (from, to, player, multiplier)
+
+	if from == to and to.request_slot_count > 0 then
+		for i = 1, to.request_slot_count do
+			to.clear_request_slot(i)
+		end
+	end	
+end
+
+local clear_inserter_settings = function (from, to, player, multiplier)
+
+	if from == to then
+		local ctrl = to.get_or_create_control_behavior()
+		ctrl.logistic_condition = nil
+		ctrl.circuit_condition = nil
+		ctrl.connect_to_logistic_network = false
+		ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.none
+	end	
 end
 
 local function generateEventIDs()
@@ -148,11 +185,10 @@ end
 
 local function register_local_settings()
 
-	--for k in pairs(game.entity_prototypes) do
-		--if string.find(k, "assembling-machine", 1, true) ~= nil then
-			map_type_to_type("assembling-machine", "inserter", assembly_to_inserter)
-		--end
-	--end
+	map_type_to_type("assembling-machine", "inserter", assembly_to_inserter)
+	map_type_to_type("assembling-machine", "logistic-container", assembly_to_requester_chest)
+	map_type_to_type("logistic-container", "logistic-container", clear_requester_chest)
+	map_type_to_type("inserter", "inserter", clear_inserter_settings)
 end
 
 -- Events
@@ -201,6 +237,51 @@ local function on_options_pressed(event)
 		global.players[player.name] = current_stack
 	
 	end
+end
+
+local function on_vanilla_pre_paste(event)
+
+	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 then
+		local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
+		for i=1, event.destination.request_slot_count do
+			evt.stacks[i] = event.destination.get_request_slot(i)
+		end
+	end
+
+end
+
+local function on_vanilla_paste(event)
+
+	local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
+
+	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 and evt ~= nil then
+		for i=1, #evt.stacks do
+			local found = false
+			local source_stack = evt.stacks[i]
+			for k=1, event.destination.request_slot_count do
+				local stack = event.destination.get_request_slot(k)
+				if stack ~= nil and source_stack.name == stack.name then
+					event.destination.set_request_slot({name = stack.name, count=(stack.count + source_stack.count)}, k)
+					found = true
+					break
+				end
+			end
+			if not found then
+				for k=1, event.destination.request_slot_count do
+					if event.destination.get_request_slot(k) == nil then
+						event.destination.set_request_slot(source_stack, k)
+						found = true
+						break
+					end
+				end
+				if not found then
+					game.players[evt.gamer].print("Additional Paste Settings: Missing space in chest")
+				end
+			end
+		end
+		event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y] = nil
+	end
+
 end
 
 local function on_hotkey_pressed(event)
@@ -298,3 +379,6 @@ script.on_event(defines.events.on_player_joined_game, on_player_joined)
 script.on_event("additional-paste-settings-hotkey", on_hotkey_pressed)
 
 script.on_event("additional-paste-settings-options-hotkey", on_options_pressed)
+
+script.on_event(defines.events.on_pre_entity_settings_pasted, on_vanilla_pre_paste)
+script.on_event(defines.events.on_entity_settings_pasted, on_vanilla_paste)
