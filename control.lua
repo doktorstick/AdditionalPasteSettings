@@ -258,24 +258,26 @@ local function on_vanilla_paste(event)
 		for i=1, #evt.stacks do
 			local found = false
 			local source_stack = evt.stacks[i]
-			for k=1, event.destination.request_slot_count do
-				local stack = event.destination.get_request_slot(k)
-				if stack ~= nil and source_stack.name == stack.name then
-					event.destination.set_request_slot({name = stack.name, count=(stack.count + source_stack.count)}, k)
-					found = true
-					break
-				end
-			end
-			if not found then
+			if source_stack ~= nil then
 				for k=1, event.destination.request_slot_count do
-					if event.destination.get_request_slot(k) == nil then
-						event.destination.set_request_slot(source_stack, k)
+					local stack = event.destination.get_request_slot(k)
+					if stack ~= nil and source_stack.name == stack.name then
+						event.destination.set_request_slot({name = stack.name, count=(stack.count + source_stack.count)}, k)
 						found = true
 						break
 					end
 				end
 				if not found then
-					game.players[evt.gamer].print("Additional Paste Settings: Missing space in chest")
+					for k=1, event.destination.request_slot_count do
+						if event.destination.get_request_slot(k) == nil then
+							event.destination.set_request_slot(source_stack, k)
+							found = true
+							break
+						end
+					end
+					if not found then
+						game.players[evt.gamer].print("Additional Paste Settings: Missing space in chest")
+					end
 				end
 			end
 		end
