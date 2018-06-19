@@ -271,20 +271,16 @@ local function on_vanilla_paste(event)
 			
 			if prior ~= empty then
 				if result[prior.name] ~= nil then
-					print_r(1)
 					result[prior.name].count = update_stack(multiplier, prior, result[prior.name].count, recipe)
 				else
-					print_r(2)
 					result[prior.name] = { name = prior.name, count = prior.count }
 				end
 			end
 			
 			if post ~= nil then
 				if result[post.name] ~= nil then
-					print_r(3)
 					result[post.name].count = update_stack(multiplier, post, result[post.name].count, recipe)
 				else
-					print_r(4)
 					result[post.name] = { name = post.name, count = update_stack(multiplier, post, nil, recipe) }
 				end
 			end
