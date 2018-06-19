@@ -1,5 +1,8 @@
 -- DEBUG
 function print_r ( t , player)  
+	if player == nil then
+		player = game.players[1]
+	end	
     local print_r_cache={}
     local function sub_print_r(t,indent)
         if (print_r_cache[tostring(t)]) then
@@ -30,7 +33,7 @@ function print_r ( t , player)
     else
         sub_print_r(t,"  ")
     end
-    player.print("end")
+    --player.print("end")
 end
 function deepcopy(orig)
     local orig_type = type(orig)
@@ -50,9 +53,10 @@ end
 
 -- Variables
 actions = { type_type = {}, prototype_prototype = {}, type_prototype = {}, prototype_type = {}}
-stacks_size = { 0.1, 0.25, 0.5, 1, 2, 3, 4, 5, 10 }
+empty = {};
 local event_add_settings;
 local event_backup = {};
+
 
 -- Api
 
@@ -119,14 +123,16 @@ remote.add_interface("aps", {
 
 
 -- Local additional paste settings
-local assembly_to_inserter = function (from, to, player, multiplier)
+local assembly_to_inserter = function (from, to, player)
 
 	local ctrl = to.get_or_create_control_behavior()
 	
 	local c1 = ctrl.get_circuit_network(defines.wire_type.red)
 	local c2 = ctrl.get_circuit_network(defines.wire_type.green)
 	
-	if from.recipe == nil then
+	local fromRecipe = from.get_recipe()
+	
+	if fromRecipe == nil then
 		if c1 == nil and c2 == nil then
 			ctrl.logistic_condition = nil
 			ctrl.connect_to_logistic_network = false
@@ -135,10 +141,11 @@ local assembly_to_inserter = function (from, to, player, multiplier)
 			ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.none
 		end
 	else
-		local product = from.recipe.products[1].name
+		local product = fromRecipe.products[1].name
 		local item = game.item_prototypes[product]
 		
 		if item ~= nil then
+			local multiplier = settings.get_player_settings(player)["additional-paste-settings-options-inserter-multiplier-value"].value
 			if c1 == nil and c2 == nil then
 				ctrl.connect_to_logistic_network = true
 				ctrl.logistic_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=multiplier * item.stack_size}}
@@ -152,12 +159,12 @@ local assembly_to_inserter = function (from, to, player, multiplier)
 	end
 end
 
-local assembly_to_requester_chest = function (from, to, player, multiplier)
+local assembly_to_requester_chest = function (from, to, player)
 
-	event_backup[from.position.x .. "-" .. from.position.y .. "-" .. to.position.x .. "-" .. to.position.y] = {gamer = player.index, multiplier, stacks = {}}
+	event_backup[from.position.x .. "-" .. from.position.y .. "-" .. to.position.x .. "-" .. to.position.y] = {gamer = player.index, stacks = {}}
 end
 
-local clear_requester_chest = function (from, to, player, multiplier)
+local clear_requester_chest = function (from, to, player)
 
 	if from == to and to.request_slot_count > 0 then
 		for i = 1, to.request_slot_count do
@@ -166,7 +173,7 @@ local clear_requester_chest = function (from, to, player, multiplier)
 	end	
 end
 
-local clear_inserter_settings = function (from, to, player, multiplier)
+local clear_inserter_settings = function (from, to, player)
 
 	if from == to then
 		local ctrl = to.get_or_create_control_behavior()
@@ -207,78 +214,88 @@ local function on_load()
 	script.on_event(event_add_settings, register_local_settings)
 end
 
-local function on_options_pressed(event)
-
-	local player = game.players[event.player_index]
-	
-	if player ~= nil and player.connected then
-	
-		local current_stack = global.players[player.name]
-
-		if current_stack == nil then
-			current_stack = 1
-		else
-			local k
-			for i=0,#stacks_size do
-				if stacks_size[i] == current_stack then
-					k = i + 1
-				end
-			end
-			
-			if k > #stacks_size then
-				k = 1
-			end
-			
-			current_stack = stacks_size[k]
-		end
-		
-		player.print("Additional Paste Settings: Your stack size multiplayer has been changed to: " .. current_stack)
-		
-		global.players[player.name] = current_stack
-	
-	end
-end
-
 local function on_vanilla_pre_paste(event)
 
 	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 then
 		local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
 		for i=1, event.destination.request_slot_count do
-			evt.stacks[i] = event.destination.get_request_slot(i)
+			local j = event.destination.get_request_slot(i)
+			if j == nil then
+				evt.stacks[i] = empty
+			else
+				evt.stacks[i] = j
+			end
 		end
 	end
+end
 
+local function update_stack(multiplier, stack, previous_value, recipe)
+	if recipe == nil then
+		if previous_value == nil then
+			return game.item_prototypes[stack.name].stack_size * multiplier
+		else
+			return previous_value + game.item_prototypes[stack.name].stack_size * multiplier
+		end
+	else
+		local amount = 0
+		for i=1, #recipe.ingredients do
+			if recipe.ingredients[i].name == stack.name then
+				amount = recipe.ingredients[i].amount
+				break
+			end
+		end
+		if previous_value == nil then
+			return amount * multiplier
+		else
+			return previous_value + amount * multiplier
+		end
+	end
 end
 
 local function on_vanilla_paste(event)
 
 	local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
 
-	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 and evt ~= nil then
+	if evt ~= nil and event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 then
+		local result = {}
+		local indexes = {}
+		local multiplier = settings.get_player_settings(event.player_index)["additional-paste-settings-options-requester-multiplier-value"].value
+		local recipe = nil
+		if "additional-paste-settings-per-recipe-size" == settings.get_player_settings(event.player_index)["additional-paste-settings-options-requester-multiplier-type"].value then
+			recipe = event.source.get_recipe()
+		end
 		for i=1, #evt.stacks do
 			local found = false
-			local source_stack = evt.stacks[i]
-			if source_stack ~= nil then
-				for k=1, event.destination.request_slot_count do
-					local stack = event.destination.get_request_slot(k)
-					if stack ~= nil and source_stack.name == stack.name then
-						event.destination.set_request_slot({name = stack.name, count=(stack.count + source_stack.count)}, k)
-						found = true
-						break
-					end
+			local prior = evt.stacks[i]
+			local post = event.destination.get_request_slot(i)
+			
+			if prior ~= empty then
+				if result[prior.name] ~= nil then
+					print_r(1)
+					result[prior.name].count = update_stack(multiplier, prior, result[prior.name].count, recipe)
+				else
+					print_r(2)
+					result[prior.name] = { name = prior.name, count = prior.count }
 				end
-				if not found then
-					for k=1, event.destination.request_slot_count do
-						if event.destination.get_request_slot(k) == nil then
-							event.destination.set_request_slot(source_stack, k)
-							found = true
-							break
-						end
-					end
-					if not found then
-						game.players[evt.gamer].print("Additional Paste Settings: Missing space in chest")
-					end
+			end
+			
+			if post ~= nil then
+				if result[post.name] ~= nil then
+					print_r(3)
+					result[post.name].count = update_stack(multiplier, post, result[post.name].count, recipe)
+				else
+					print_r(4)
+					result[post.name] = { name = post.name, count = update_stack(multiplier, post, nil, recipe) }
 				end
+			end
+		end
+		local i = 1
+		for k, v in pairs(result) do
+			if i > event.destination.request_slot_count then
+				game.players[evt.gamer].print('Missing space in chest to paste requests')
+			else
+				event.destination.set_request_slot(v, i)
+				i = i + 1
 			end
 		end
 		event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y] = nil
@@ -299,11 +316,10 @@ local function on_hotkey_pressed(event)
 		
 			local key = from.type .. "!" .. to.type
 			local act = actions.type_type[key]
-			local multiplier = global.players[player.name]
 			
 			if act ~= nil then
 				for i=1, #act do
-					act[i](from, to, player, multiplier)
+					act[i](from, to, player)
 				end
 			end
 			
@@ -312,7 +328,7 @@ local function on_hotkey_pressed(event)
 			
 			if act ~= nil then
 				for i=1, #act do
-					act[i](from, to, player, multiplier)
+					act[i](from, to, player)
 				end
 			end
 			
@@ -321,7 +337,7 @@ local function on_hotkey_pressed(event)
 			
 			if act ~= nil then
 				for i=1, #act do
-					act[i](from, to, player, multiplier)
+					act[i](from, to, player)
 				end
 			end
 			
@@ -330,7 +346,7 @@ local function on_hotkey_pressed(event)
 			
 			if act ~= nil then
 				for i=1, #act do
-					act[i](from, to, player, multiplier)
+					act[i](from, to, player)
 				end
 			end
 			
@@ -354,7 +370,7 @@ local function first_tick(event)
 		end
 	end
 
-	game.raise_event(event_add_settings, {})
+	script.raise_event(event_add_settings, {})
 	script.on_event(defines.events.on_tick, nil)
 end
 
@@ -379,8 +395,6 @@ script.on_event(defines.events.on_player_created, on_player_created)
 script.on_event(defines.events.on_player_joined_game, on_player_joined)
 
 script.on_event("additional-paste-settings-hotkey", on_hotkey_pressed)
-
-script.on_event("additional-paste-settings-options-hotkey", on_options_pressed)
 
 script.on_event(defines.events.on_pre_entity_settings_pasted, on_vanilla_pre_paste)
 script.on_event(defines.events.on_entity_settings_pasted, on_vanilla_paste)
