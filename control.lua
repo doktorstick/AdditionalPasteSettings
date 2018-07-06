@@ -363,7 +363,7 @@ local function on_hotkey_pressed(event)
 				end
 			end
 			
-			player.print( "From: type=" .. from.type .. " prototype=" .. from.prototype.name .. " | To: type=" .. to.type .. " prototype=" .. to.prototype.name )
+			--player.print( "From: type=" .. from.type .. " prototype=" .. from.prototype.name .. " | To: type=" .. to.type .. " prototype=" .. to.prototype.name )
 		end
 	end
 	
