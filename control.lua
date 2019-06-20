@@ -131,14 +131,18 @@ local assembly_to_inserter = function (from, to, player)
 			local amount = multiplier * item.stack_size
 			if c1 == nil and c2 == nil then
 				if ctrl.connect_to_logistic_network and ctrl.logistic_condition['condition']['first_signal']['name'] == product then
-					amount =  amount + ctrl.logistic_condition['condition']['constant']
+					if ctrl.logistic_condition['condition']['constant'] ~= nil then
+						amount = amount + ctrl.logistic_condition['condition']['constant']
+					end
 				else
 					ctrl.connect_to_logistic_network = true
 				end
 				ctrl.logistic_condition = {condition={comparator="<", first_signal={type="item", name=product}, constant=amount}}
 			else
 				if ctrl.circuit_mode_of_operation == defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable and ctrl.circuit_condition['condition']['first_signal']['name'] == product then
-					amount = amount + ctrl.circuit_condition['condition']['constant']
+					if ctrl.logistic_condition['condition']['constant'] ~= nil then
+						amount = amount + ctrl.circuit_condition['condition']['constant']
+					end
 				else
 					ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable
 				end
