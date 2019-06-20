@@ -1,0 +1,73 @@
+---------------------------------------------------------------------------------------------------
+Version: 0.6.3
+Date: 20. 6. 2019
+  Changes:
+    - Implemented a changelog
+    - Updated the description on info.json
+---------------------------------------------------------------------------------------------------
+Version: 0.6.2
+Date: 20. 6. 2019
+  Bufixes:
+    - Fixed a bug when the second condition was not a number and it was overriding an existing condition. Thanks Murdersquish for reporting the bug.
+---------------------------------------------------------------------------------------------------
+Version: 0.6.1
+Date: 19. 4. 2019
+  Changes:
+    - I'll keep the pictures inside the ZIP as well :)
+---------------------------------------------------------------------------------------------------
+Version: 0.6.0
+Date: 19. 4. 2019
+  Changes:
+    - Updated to 0.17. Thanks Recon777!
+---------------------------------------------------------------------------------------------------
+Version: 0.5.0
+Date: 6. 7. 2018
+  Major Features:
+    - First attempt on multiplayer support
+  Features:
+    - Added ability to copy from assembly machine and paste onto constant combinators (sets signals based on the recipe ingredients and based on Requester Chest config)
+---------------------------------------------------------------------------------------------------
+Version: 0.4.0
+Date: 19. 6. 2018
+  Changes:
+    - Updated to Factorio 0.16
+---------------------------------------------------------------------------------------------------
+Version: 0.3.1
+Date: 1. 4. 2017
+  Bugfixes:
+    - Fixed possible nil uncheck error.
+---------------------------------------------------------------------------------------------------
+Version: 0.3.0
+Date: 25. 3. 2017
+  Features:
+    - Added Assembly -> Requester Chest appending.
+    - Added self Inserter and self Requester chest clearing.
+---------------------------------------------------------------------------------------------------
+Version: 0.2.0
+Date: 12. 12. 2016
+  Changes:
+    - Rewrote the mod so it has additional settings.
+  Features:
+    - Includes an API for other mods to use.
+    - Added custom stack size selection (default to CTRL+SHIFT+O).
+    - Now adds strings to the controls menu.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.3
+Date: 10. 12. 2016
+  Bugfixes:
+    - Fixed exception when copying from chemical plants or refineries to inserters. Started working on an API for other mods.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.2
+Date: 10. 12. 2016
+  Bugfixes:
+    - Fixed type in data.lua
+---------------------------------------------------------------------------------------------------
+Version: 0.1.1
+Date: 10. 12. 2016
+  Bugfixes:
+    - Fixed typo in zip name.
+---------------------------------------------------------------------------------------------------
+Version: 0.1.0
+Date: 09. 12. 2016
+  Changes:
+    - Initial mod.
