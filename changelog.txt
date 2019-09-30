@@ -1,4 +1,11 @@
 ---------------------------------------------------------------------------------------------------
+Version: 0.7.0
+Date: 30. 9. 2019
+  Features:
+    - Separated the options for each type of entity pasted.
+    - Added a 'Time Spent' on crafting option.
+    - Added support for 'Storage Chests' filter
+---------------------------------------------------------------------------------------------------
 Version: 0.6.3
 Date: 20. 6. 2019
   Changes:

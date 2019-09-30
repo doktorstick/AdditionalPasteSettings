@@ -101,10 +101,62 @@ map_prototype_to_type = function ( from , to , action )
 	
 	return #actions.prototype_type[from .. "!" .. to]
 end
--- API end
+
+-- Helpers
+
+local function update_stack(mtype, multiplier, stack, previous_value, recipe, speed, additive)
+	if mtype == "additional-paste-settings-per-stack-size" then
+		if additive and previous_value ~= nil then
+			return previous_value + game.item_prototypes[stack.name].stack_size * multiplier
+		else
+			return game.item_prototypes[stack.name].stack_size * multiplier
+		end
+	elseif mtype == "additional-paste-settings-per-recipe-size" then
+		local amount = 0
+		for i=1, #recipe.ingredients do
+			if recipe.ingredients[i].name == stack.name then
+				amount = recipe.ingredients[i].amount
+				break
+			end
+		end
+		for i=1, #recipe.products do
+			if recipe.products[i].name == stack.name then
+				amount = recipe.products[i].amount
+				break
+			end
+		end
+		if additive and previous_value ~= nil then
+			return previous_value + amount * multiplier
+		else
+			return amount * multiplier
+		end
+	elseif mtype == "additional-paste-settings-per-time-size" then
+		local amount = 0
+		for i=1, #recipe.ingredients do
+			if recipe.ingredients[i].name == stack.name then
+				amount = recipe.ingredients[i].amount
+				break
+			end
+		end
+		for i=1, #recipe.products do
+			if recipe.products[i].name == stack.name then
+				amount = recipe.products[i].amount
+				break
+			end
+		end
+		if additive and previous_value ~= nil then
+			return previous_value + amount * multiplier * speed / recipe.energy
+		else
+			return amount * multiplier * speed / recipe.energy
+		end
+	else
+		error "error"
+	end
+end
 
 
 -- Local additional paste settings
+
 local assembly_to_inserter = function (from, to, player)
 
 	local ctrl = to.get_or_create_control_behavior()
@@ -128,11 +180,13 @@ local assembly_to_inserter = function (from, to, player)
 		
 		if item ~= nil then
 			local multiplier = settings.get_player_settings(player)["additional-paste-settings-options-inserter-multiplier-value"].value
-			local amount = multiplier * item.stack_size
+			local mtype = settings.get_player_settings(player)["additional-paste-settings-options-inserter-multiplier-type"].value
+			local additive = settings.get_player_settings(player)["additional-paste-settings-options-sumup"].value
+			local amount = update_stack(mtype, multiplier, item, nil, fromRecipe, from.crafting_speed, additive)
 			if c1 == nil and c2 == nil then
 				if ctrl.connect_to_logistic_network and ctrl.logistic_condition['condition']['first_signal']['name'] == product then
 					if ctrl.logistic_condition['condition']['constant'] ~= nil then
-						amount = amount + ctrl.logistic_condition['condition']['constant']
+						amount = update_stack(mtype, multiplier, item, ctrl.logistic_condition['condition']['constant'], fromRecipe, from.crafting_speed, additive)
 					end
 				else
 					ctrl.connect_to_logistic_network = true
@@ -141,7 +195,7 @@ local assembly_to_inserter = function (from, to, player)
 			else
 				if ctrl.circuit_mode_of_operation == defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable and ctrl.circuit_condition['condition']['first_signal']['name'] == product then
 					if ctrl.logistic_condition['condition']['constant'] ~= nil then
-						amount = amount + ctrl.circuit_condition['condition']['constant']
+						amount = update_stack(mtype, multiplier, item, ctrl.circuit_condition['condition']['constant'], fromRecipe, from.crafting_speed, additive)
 					end
 				else
 					ctrl.circuit_mode_of_operation = defines.control_behavior.inserter.circuit_mode_of_operation.enable_disable
@@ -153,14 +207,18 @@ local assembly_to_inserter = function (from, to, player)
 	end
 end
 
-local assembly_to_requester_chest = function (from, to, player)
+local assembly_to_logistic_chest = function (from, to, player)
 	-- this needs additional logic from events on_vanilla_pre_paste and on_vanilla_paste to correctly set the filter
-	event_backup[from.position.x .. "-" .. from.position.y .. "-" .. to.position.x .. "-" .. to.position.y] = {gamer = player.index, stacks = {}}
+	if to.prototype.logistic_mode == "requester" or to.prototype.logistic_mode == "buffer" then
+		event_backup[from.position.x .. "-" .. from.position.y .. "-" .. to.position.x .. "-" .. to.position.y] = {gamer = player.index, stacks = {}}
+	elseif to.prototype.logistic_mode == "storage" then
+		to.storage_filter = game.item_prototypes[from.get_recipe().name]		
+	end
 end
 
 local clear_requester_chest = function (from, to, player)
 
-	if from == to and to.request_slot_count > 0 then
+	if from == to and (to.prototype.logistic_mode == "requester" or to.prototype.logistic_mode == "buffer") then
 		for i = 1, to.request_slot_count do
 			to.clear_request_slot(i)
 		end
@@ -225,7 +283,7 @@ end
 
 local function register_local_settings()
 	map_type_to_type("assembling-machine", "inserter", assembly_to_inserter)
-	map_type_to_type("assembling-machine", "logistic-container", assembly_to_requester_chest)
+	map_type_to_type("assembling-machine", "logistic-container", assembly_to_logistic_chest)
 	map_type_to_type("assembling-machine", "constant-combinator", assembly_to_constant_combinator)
 	map_type_to_type("logistic-container", "logistic-container", clear_requester_chest)
 	map_type_to_type("inserter", "inserter", clear_inserter_settings)
@@ -233,32 +291,9 @@ end
 
 -- Events
 
-local function update_stack(multiplier, stack, previous_value, recipe)
-	if recipe == nil then
-		if previous_value == nil then
-			return game.item_prototypes[stack.name].stack_size * multiplier
-		else
-			return previous_value + game.item_prototypes[stack.name].stack_size * multiplier
-		end
-	else
-		local amount = 0
-		for i=1, #recipe.ingredients do
-			if recipe.ingredients[i].name == stack.name then
-				amount = recipe.ingredients[i].amount
-				break
-			end
-		end
-		if previous_value == nil then
-			return amount * multiplier
-		else
-			return previous_value + amount * multiplier
-		end
-	end
-end
-
 local function on_vanilla_pre_paste(event)
 
-	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 then
+	if event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and (event.destination.prototype.logistic_mode == "requester" or event.destination.prototype.logistic_mode == "buffer") then
 		local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
 		if evt ~= nil then
 			for i=1, event.destination.request_slot_count do
@@ -277,22 +312,21 @@ local function on_vanilla_paste(event)
 
 	local evt = event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y]
 
-	if evt ~= nil and event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and event.destination.request_slot_count > 0 then
+	if evt ~= nil and event.source.type == "assembling-machine" and event.destination.type == "logistic-container" and (event.destination.prototype.logistic_mode == "requester" or event.destination.prototype.logistic_mode == "buffer") then
 		local result = {}
 		local indexes = {}
 		local multiplier = settings.get_player_settings(event.player_index)["additional-paste-settings-options-requester-multiplier-value"].value
-		local recipe = nil
-		if "additional-paste-settings-per-recipe-size" == settings.get_player_settings(event.player_index)["additional-paste-settings-options-requester-multiplier-type"].value then
-			recipe = event.source.get_recipe()
-		end
+		local mtype = settings.get_player_settings(event.player_index)["additional-paste-settings-options-requester-multiplier-type"].value
+		local recipe = event.source.get_recipe()
+		local speed = event.source.crafting_speed
+		local additive = settings.get_player_settings(event.player_index)["additional-paste-settings-options-sumup"].value
 		for i=1, #evt.stacks do
-			local found = false
 			local prior = evt.stacks[i]
 			local post = event.destination.get_request_slot(i)
 			
 			if prior ~= empty then
 				if result[prior.name] ~= nil then
-					result[prior.name].count = update_stack(multiplier, prior, result[prior.name].count, recipe)
+					result[prior.name].count = update_stack(mtype, multiplier, prior, result[prior.name].count, recipe, speed, additive)
 				else
 					result[prior.name] = { name = prior.name, count = prior.count }
 				end
@@ -300,9 +334,9 @@ local function on_vanilla_paste(event)
 			
 			if post ~= nil then
 				if result[post.name] ~= nil then
-					result[post.name].count = update_stack(multiplier, post, result[post.name].count, recipe)
+					result[post.name].count = update_stack(mtype, multiplier, post, result[post.name].count, recipe, speed, additive)
 				else
-					result[post.name] = { name = post.name, count = update_stack(multiplier, post, nil, recipe) }
+					result[post.name] = { name = post.name, count = update_stack(mtype, multiplier, post, nil, recipe, speed, additive) }
 				end
 			end
 		end
