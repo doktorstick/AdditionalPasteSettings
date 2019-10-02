@@ -238,7 +238,9 @@ end
 
 local assembly_to_constant_combinator = function(from, to, player)
 
-	local multiplier = settings.get_player_settings(player)["additional-paste-settings-options-requester-multiplier-value"].value
+	local multiplier = settings.get_player_settings(player)["additional-paste-settings-options-combinator-multiplier-value"].value
+	local mtype = settings.get_player_settings(player)["additional-paste-settings-options-combinator-multiplier-type"].value
+	local additive = settings.get_player_settings(player)["additional-paste-settings-options-sumup"].value
 	local recipe = from.get_recipe()
 	local amount = 0
 	local per_recipe_size = ("additional-paste-settings-per-recipe-size" == settings.get_player_settings(player)["additional-paste-settings-options-requester-multiplier-type"].value)
@@ -252,25 +254,17 @@ local assembly_to_constant_combinator = function(from, to, player)
 		for i=1, ctrl.signals_count do
 			local s = ctrl.get_signal(i)
 			if s.signal ~= nil and s.signal.name == current.name then
-				if per_recipe_size then
-					amount = s.count + current.amount * multiplier
-				else
-					amount = s.count + game.item_prototypes[current.name].stack_size * multiplier
-				end
+				amount = update_stack(mtype, multiplier, {name=current.name}, s.count, recipe, from.crafting_speed, additive)
 				ctrl.set_signal(i, {signal={type=current.type,name=current.name}, count=amount})
 				found = true
 			end
 		end
 		
 		if not found then
-			if per_recipe_size then
-				amount = current.amount * multiplier
-			else
-				amount = game.item_prototypes[current.name].stack_size * multiplier
-			end
 			for i=1, ctrl.signals_count do
 				local s = ctrl.get_signal(i)
 				if s.signal == nil then
+					amount = update_stack(mtype, multiplier, {name=current.name}, nil, recipe, from.crafting_speed, additive)
 					ctrl.set_signal(i, {signal={type=current.type,name=current.name}, count=amount})
 					break
 				end
