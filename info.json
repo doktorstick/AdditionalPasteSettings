@@ -1,10 +1,10 @@
 {
   "name": "additional-paste-settings",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "title": "Additional Paste Settings",
-  "factorio_version": "0.17",
+  "factorio_version": "0.18",
   "author": "Shirkit",
   "contact": "klumany@gmail.com",
   "description": "Adds additional paste settings for the game (shift+right click -> shift+left click), such as merging/combining requests at logistic chests, setting a fixed request multiplier, allow you to modify the 30 seconds vanilla behaviour and allow pasting from assemblers into inserters to set a condition on them.",
-  "dependencies": ["base >= 0.17.0"]
+  "dependencies": ["base >= 0.18.0"]
 }
