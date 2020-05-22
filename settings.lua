@@ -21,6 +21,14 @@ data:extend({
 		order = "bb"
 	},
 	{
+		type = "int-setting",
+		name = "additional-paste-settings-options-buffer-multiplier-value",
+		setting_type = 'runtime-per-user',
+		minimum_value = 0,
+		default_value = 0,
+		order = "bc"
+	},
+	{
 		type = "string-setting",
 		name = "additional-paste-settings-options-inserter-multiplier-type",
 		setting_type = 'runtime-per-user',

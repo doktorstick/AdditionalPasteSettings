@@ -318,23 +318,60 @@ local function on_vanilla_paste(event)
 		local recipe = event.source.get_recipe()
 		local speed = event.source.crafting_speed
 		local additive = settings.get_player_settings(event.player_index)["additional-paste-settings-options-sumup"].value
-		for i=1, #evt.stacks do
-			local prior = evt.stacks[i]
-			local post = event.destination.get_request_slot(i)
-			
-			if prior ~= empty then
-				if result[prior.name] ~= nil then
-					result[prior.name].count = update_stack(mtype, multiplier, prior, result[prior.name].count, recipe, speed, additive)
-				else
-					result[prior.name] = { name = prior.name, count = prior.count }
+
+		-- Alters behavior for buffer chests.
+		local buffer_multiplier = settings.get_player_settings(event.player_index)["additional-paste-settings-options-buffer-multiplier-value"].value
+		local is_buffer = event.destination.prototype.logistic_mode == "buffer"
+
+		if is_buffer and buffer_multiplier > 0 then
+			mtype = "additional-paste-settings-per-stack-size"
+
+			-- The vanilla paste to a buffer chest is going to replace what
+			-- was there with the ingredients. We want to maintain what
+			-- was prior to the replace with the addition of the products.
+			for i=1, #evt.stacks do
+				event.destination.clear_request_slot (i)
+			end
+
+			for i=1, #evt.stacks do
+				local prior = evt.stacks[i]
+				if prior.name then
+					result[prior.name] = prior
 				end
 			end
-			
-			if post ~= nil then
-				if result[post.name] ~= nil then
-					result[post.name].count = update_stack(mtype, multiplier, post, result[post.name].count, recipe, speed, additive)
+
+			for _, product in pairs (recipe.products) do
+				local name = product.name
+				local previous_count
+
+				if result[name] == nil then
+					previous_count = 0
+					result[name] = { name = name, count = previous_count }
 				else
-					result[post.name] = { name = post.name, count = update_stack(mtype, multiplier, post, nil, recipe, speed, additive) }
+					previous_count = result[name].count
+				end
+				result[name].count = update_stack (mtype, buffer_multiplier, result[name], previous_count, recipe, speed, additive)
+			end
+
+		else
+			for i=1, #evt.stacks do
+				local prior = evt.stacks[i]
+				local post = event.destination.get_request_slot(i)
+
+				if prior ~= empty then
+					if result[prior.name] ~= nil then
+						result[prior.name].count = update_stack(mtype, multiplier, prior, result[prior.name].count, recipe, speed, additive)
+					else
+						result[prior.name] = { name = prior.name, count = prior.count }
+					end
+				end
+
+				if post ~= nil then
+					if result[post.name] ~= nil then
+						result[post.name].count = update_stack(mtype, multiplier, post, result[post.name].count, recipe, speed, additive)
+					else
+						result[post.name] = { name = post.name, count = update_stack(mtype, multiplier, post, nil, recipe, speed, additive) }
+					end
 				end
 			end
 		end
@@ -352,6 +389,12 @@ local function on_vanilla_paste(event)
 		event_backup[event.source.position.x .. "-" .. event.source.position.y .. "-" .. event.destination.position.x .. "-" .. event.destination.position.y] = nil
 	end
 
+end
+
+local function on_gui_click_aps(event)
+	print_r("something")
+	print_r(event)
+	print_r(defines.gui_type.controller)
 end
 
 local function on_hotkey_pressed(event)
@@ -430,3 +473,9 @@ script.on_event("additional-paste-settings-hotkey", on_hotkey_pressed)
 
 script.on_event(defines.events.on_pre_entity_settings_pasted, on_vanilla_pre_paste)
 script.on_event(defines.events.on_entity_settings_pasted, on_vanilla_paste)
+
+--script.on_event(defines.events.on_gui_click, on_gui_click_aps)
+--script.on_event(defines.events.on_gui_opened, on_gui_click_aps)
+--script.on_event(defines.events.on_gui_value_changed, on_gui_click_aps)
+--script.on_event(defines.events.on_gui_confirmed, on_gui_click_aps)
+
