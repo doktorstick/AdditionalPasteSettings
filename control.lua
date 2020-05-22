@@ -105,6 +105,10 @@ end
 -- Helpers
 
 local function update_stack(mtype, multiplier, stack, previous_value, recipe, speed, additive)
+	if not game.item_prototypes[stack.name] then
+		return nil
+	end
+
 	if mtype == "additional-paste-settings-per-stack-size" then
 		if additive and previous_value ~= nil then
 			return previous_value + game.item_prototypes[stack.name].stack_size * multiplier
@@ -145,9 +149,9 @@ local function update_stack(mtype, multiplier, stack, previous_value, recipe, sp
 			end
 		end
 		if additive and previous_value ~= nil then
-			return previous_value + amount * multiplier * speed / recipe.energy
+			return math.ceil(previous_value + amount * multiplier * speed / recipe.energy)
 		else
-			return amount * multiplier * speed / recipe.energy
+			return math.ceil(amount * multiplier * speed / recipe.energy)
 		end
 	else
 		error "error"
@@ -336,7 +340,9 @@ local function on_vanilla_paste(event)
 		end
 		local i = 1
 		for k, v in pairs(result) do
-			if i > event.destination.request_slot_count then
+			if not v or not v.count then
+				-- Nothing to do here.
+			elseif i > event.destination.request_slot_count then
 				game.players[evt.gamer].print('Missing space in chest to paste requests')
 			else
 				event.destination.set_request_slot(v, i)
